@@ -88,13 +88,27 @@ text-align: center;
   top: 72px;
   left: 16px;
 
-  color: #ffffff;
+  color: #ff8c00;
   font-family: 'VT323', monospace;
-  font-size: 20px;
   line-height: 1;
   letter-spacing: 1px;
-  z-index: 2;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 40;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
 }
+
+.bitcoin-label {
+  display: block;
+  font-size: 22px;
+}
+
+.bitcoin-value {
+  display: block;
+  font-size: 88px; /* Four times 22px */
+  margin-top: 4px;
+}
+
 
 #battle-log {
 width: 620px;
@@ -888,7 +902,6 @@ Loading...
     left: 16px;
     color: #ff8c00;
     font-family: 'VT323', monospace;
-    font-size: 22px;
     line-height: 1;
     letter-spacing: 1px;
     white-space: nowrap;
@@ -897,8 +910,24 @@ Loading...
     z-index: 40;
   "
 >
-  BITCOIN: loading...
+  <span
+    class="bitcoin-label"
+    style="
+      display: block;
+      font-size: 24px;
+    "
+  >BITCOIN:</span>
+
+  <span
+    class="bitcoin-value"
+    style="
+      display: block;
+      margin-top: 4px;
+      font-size: 72px;
+    "
+  >loading...</span>
 </div>
+
 <!-- START button now hidden by default -->
 <button id="start-button" style="display: none;">START</button>
 <div id="info-icon" onclick="showInfo()" style="position: absolute; top: 50px; right: 20px; width: 30px; height: 30px; background: #00e8d8; color: #fff; border: 3px solid #ff8c00; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-family: 'VT323', monospace; font-size: 24px; cursor: pointer; z-index: 50;">i</div>
@@ -3808,7 +3837,10 @@ async function loadBitcoinPrice() {
 
   if (!bitcoinPrice) return;
 
-  bitcoinPrice.textContent = 'BITCOIN: loading...';
+  const bitcoinLabel = bitcoinPrice.querySelector('.bitcoin-label');
+  const bitcoinValue = bitcoinPrice.querySelector('.bitcoin-value');
+
+  bitcoinValue.textContent = 'loading...';
 
   try {
     const response = await fetch(
@@ -3832,10 +3864,13 @@ async function loadBitcoinPrice() {
       maximumFractionDigits: 0
     }).format(price);
 
-    bitcoinPrice.textContent = `BITCOIN: ${formattedPrice}`;
+    bitcoinLabel.textContent = 'BITCOIN:';
+    bitcoinValue.textContent = formattedPrice;
   } catch (error) {
     console.warn('Bitcoin price failed to load:', error);
-    bitcoinPrice.textContent = 'BITCOIN: unavailable';
+
+    bitcoinLabel.textContent = 'BITCOIN:';
+    bitcoinValue.textContent = 'unavailable';
   }
 }
 
