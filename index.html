@@ -2474,152 +2474,256 @@ needsRedraw = true;
 return false;
 }
 }
-const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+const AudioContextClass =
+    window.AudioContext || window.webkitAudioContext;
+
 let audioContext = null;
 let masterGain = null;
-let soundVolume = localStorage.getItem('soundVolume') || 1.0;
-let musicVolume = localStorage.getItem('musicVolume') || 1.0;
-function setSoundVolume(volume) {
-soundVolume = Math.max(0, Math.min(1, volume));
-localStorage.setItem('soundVolume', soundVolume);
-Object.entries(sounds).forEach(([key, sound]) => {
-if (key === 'dungeon' || key === 'desert' || key === 'hell' || key === 'paradise' || key === 'ruins' || key === 'hideout') return;
-if (sound instanceof Audio) {
-sound.volume = soundVolume;
-}
-});
-if (masterGain) {
-masterGain.gain.value = soundVolume * getPlatformMasterGain();
-}
-}
-function setMusicVolume(volume) {
-musicVolume = Math.max(0, Math.min(1, volume));
-localStorage.setItem('musicVolume', musicVolume);
-if (musicManager) {
-musicManager.volume = musicVolume;
-if (musicManager.current && musicManager.audios[musicManager.current]) {
-musicManager.audios[musicManager.current].volume = musicManager.muted ? 0 : musicVolume;
-}
-}
-}
+
+let soundVolume =
+    parseFloat(localStorage.getItem('soundVolume')) || 1.0;
+
+let musicVolume =
+    parseFloat(localStorage.getItem('musicVolume')) || 1.0;
+
+
+// -------------------------
+// AudioContext
+// -------------------------
+
 function getPlatformMasterGain() {
-const ua = navigator.userAgent || navigator.vendor || window.opera;
-const isAndroid = /android/i.test(ua);
-const calmLevel = 0.5;
-return isAndroid ? calmLevel * 1.5 : calmLevel;
+    const ua = navigator.userAgent || '';
+    const isAndroid = /android/i.test(ua);
+    const calmLevel = 0.5;
+
+    return isAndroid ? calmLevel * 1.5 : calmLevel;
 }
+
 function getAudioContext() {
-if (!audioContext) {
-audioContext = new AudioContext();
-masterGain = audioContext.createGain();
-masterGain.gain.value = soundVolume * getPlatformMasterGain();
-masterGain.connect(audioContext.destination);
+    if (!audioContext) {
+        audioContext = new AudioContextClass();
+
+        masterGain = audioContext.createGain();
+        masterGain.gain.value =
+            soundVolume * getPlatformMasterGain();
+
+        masterGain.connect(audioContext.destination);
+    }
+
+    return audioContext;
 }
-return audioContext;
+
+async function unlockAudio() {
+    const context = getAudioContext();
+
+    if (context.state !== 'running') {
+        await context.resume();
+    }
+
+    console.log('AudioContext state:', context.state);
 }
-audioContext = getAudioContext();
+
+
+// -------------------------
+// Sound effects
+// -------------------------
+
 const sounds = {
-attack: (() => {
-const a = new Audio('attack.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-potion: (() => {
-const a = new Audio('potion.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-hit: { buffer: null, url: 'hit.wav', isPlaying: false, duration: 720 },
-pickup: { buffer: null, url: 'pickup.wav', isPlaying: false, duration: 950 },
-dungeon: (() => {
-const a = new Audio('dungeon.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-desert: (() => {
-const a = new Audio('desert.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-hell: (() => {
-const a = new Audio('hell.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-paradise: (() => {
-const a = new Audio('paradise.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-ruins: (() => {
-const a = new Audio('ruins.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-hideout: (() => {
-const a = new Audio('hideout.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-palace: (() => {
-const a = new Audio('palace.mp3');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-gameover: (() => {
-const a = new Audio('gameover.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-stairs: (() => {
-const a = new Audio('stairs.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-secret: (() => {
-const a = new Audio('secret.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-shoot_sword: (() => {
-const a = new Audio('shoot_sword.wav');
-a.preload = 'auto';
-a.load();
-return a;
-})(),
-heads: { buffer: null, url: 'heads.wav', isPlaying: false, duration: 650 },
-tails: { buffer: null, url: 'tails.wav', isPlaying: false, duration: 950 },
-lava: { buffer: null, url: 'lava.wav', isPlaying: false, duration: 900 },
-quicksand: { buffer: null, url: 'quicksand.wav', isPlaying: false, duration: 250 },
-pond: { buffer: null, url: 'pond.wav', isPlaying: false, duration: 500 },
-rune: { buffer: null, url: 'rune.wav', isPlaying: false, duration: 2000 },
-rune_drop: { buffer: null, url: 'rune_drop.wav', isPlaying: false, duration: 1000 },
-hole: { buffer: null, url: 'hole.wav', isPlaying: false, duration: 745 },
-town_portal: { buffer: null, url: 'town_portal.wav', isPlaying: false, duration: 535 },
-buzz: { buffer: null, url: 'buzz.wav', isPlaying: false, duration: 1000 },
-unique_monster: { buffer: null, url: 'unique_monster.wav', isPlaying: false, duration: 1400 }
+    attack: (() => {
+        const a = new Audio('attack.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    potion: (() => {
+        const a = new Audio('potion.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    hit: {
+        buffer: null,
+        url: 'hit.wav',
+        isPlaying: false,
+        duration: 720
+    },
+
+    pickup: {
+        buffer: null,
+        url: 'pickup.wav',
+        isPlaying: false,
+        duration: 950
+    },
+
+    gameover: (() => {
+        const a = new Audio('gameover.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    stairs: (() => {
+        const a = new Audio('stairs.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    secret: (() => {
+        const a = new Audio('secret.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    shoot_sword: (() => {
+        const a = new Audio('shoot_sword.wav');
+        a.preload = 'auto';
+        a.load();
+        return a;
+    })(),
+
+    heads: {
+        buffer: null,
+        url: 'heads.wav',
+        isPlaying: false,
+        duration: 650
+    },
+
+    tails: {
+        buffer: null,
+        url: 'tails.wav',
+        isPlaying: false,
+        duration: 950
+    },
+
+    lava: {
+        buffer: null,
+        url: 'lava.wav',
+        isPlaying: false,
+        duration: 900
+    },
+
+    quicksand: {
+        buffer: null,
+        url: 'quicksand.wav',
+        isPlaying: false,
+        duration: 250
+    },
+
+    pond: {
+        buffer: null,
+        url: 'pond.wav',
+        isPlaying: false,
+        duration: 500
+    },
+
+    rune: {
+        buffer: null,
+        url: 'rune.wav',
+        isPlaying: false,
+        duration: 2000
+    },
+
+    rune_drop: {
+        buffer: null,
+        url: 'rune_drop.wav',
+        isPlaying: false,
+        duration: 1000
+    },
+
+    hole: {
+        buffer: null,
+        url: 'hole.wav',
+        isPlaying: false,
+        duration: 745
+    },
+
+    town_portal: {
+        buffer: null,
+        url: 'town_portal.wav',
+        isPlaying: false,
+        duration: 535
+    },
+
+    buzz: {
+        buffer: null,
+        url: 'buzz.wav',
+        isPlaying: false,
+        duration: 1000
+    },
+
+    unique_monster: {
+        buffer: null,
+        url: 'unique_monster.wav',
+        isPlaying: false,
+        duration: 1400
+    }
 };
-function loadSoundBuffer(url, key) {
-fetch(url)
-.then(response => response.arrayBuffer())
-.then(data => audioContext.decodeAudioData(data))
-.then(buffer => {
-sounds[key].buffer = buffer;
-})
-.catch(e => console.error(`Failed to load Web Audio buffer for ${key}: ${url}`, e));
+
+
+// -------------------------
+// Volume controls
+// -------------------------
+
+function setSoundVolume(volume) {
+    soundVolume = Math.max(0, Math.min(1, Number(volume)));
+
+    localStorage.setItem('soundVolume', soundVolume);
+
+    Object.entries(sounds).forEach(([key, sound]) => {
+        if (sound instanceof Audio) {
+            sound.volume = soundVolume;
+        }
+    });
+
+    if (masterGain) {
+        masterGain.gain.value =
+            soundVolume * getPlatformMasterGain();
+    }
 }
+
+function setMusicVolume(volume) {
+    musicVolume = Math.max(0, Math.min(1, Number(volume)));
+
+    localStorage.setItem('musicVolume', musicVolume);
+
+    if (musicManager) {
+        musicManager.setVolume(musicVolume);
+    }
+}
+
+
+// -------------------------
+// Load Web Audio sound effects
+// -------------------------
+
+function loadSoundBuffer(url, key) {
+    const context = getAudioContext();
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            return response.arrayBuffer();
+        })
+        .then(data => context.decodeAudioData(data))
+        .then(buffer => {
+            sounds[key].buffer = buffer;
+        })
+        .catch(error => {
+            console.error(
+                `Failed to load sound buffer for ${key}: ${url}`,
+                error
+            );
+        });
+}
+
 loadSoundBuffer('hit.wav', 'hit');
 loadSoundBuffer('pickup.wav', 'pickup');
 loadSoundBuffer('heads.wav', 'heads');
@@ -2633,190 +2737,273 @@ loadSoundBuffer('hole.wav', 'hole');
 loadSoundBuffer('town_portal.wav', 'town_portal');
 loadSoundBuffer('buzz.wav', 'buzz');
 loadSoundBuffer('unique_monster.wav', 'unique_monster');
-class MusicManager {
-constructor() {
-this.audios = {
-dungeon: sounds.dungeon,
-desert: sounds.desert,
-hell: sounds.hell,
-paradise: sounds.paradise,
-ruins: sounds.ruins,
-hideout: sounds.hideout,
-palace: sounds.palace
-};
-this.current = null;
-this.muted = false;
-this.volume = musicVolume;
-Object.values(this.audios).forEach(audio => {
-audio.loop = true;
-audio.onerror = () => console.error(`Failed to load music: ${audio.src}`);
-audio.volume = musicVolume;
-});
-}
 
 
-async play(theme) {
-  if (!this.audios[theme]) return;
-
-  const audio = this.audios[theme];
-
-  // If this theme is already active, make sure it is still playing.
-  if (this.current === theme) {
-    audio.volume = this.muted ? 0 : this.volume;
-    audio.muted = this.muted;
-
-    if (audio.paused && !this.muted) {
-      try {
-        await audio.play();
-      } catch (e) {
-        console.error('Music play failed:', e);
-      }
+async function restartMusicAfterStart() {
+    if (musicMuted || inPuzzleRoom) {
+        return;
     }
 
-    return;
-  }
+    if (!currentTheme) {
+        currentTheme = 'dungeon';
+    }
 
-  // Stop the previous theme immediately.
-  if (this.current && this.audios[this.current]) {
-    const previousAudio = this.audios[this.current];
+    musicManager.current = null;
+    musicManager.audio.pause();
+    musicManager.audio.currentTime = 0;
 
-    previousAudio.pause();
-    previousAudio.currentTime = 0;
-    previousAudio.volume = 0;
-  }
+    try {
+        await unlockAudio();
 
-  // Set the new theme before calling play().
-  // This prevents pause/error callbacks from referring to the old theme.
-  this.current = theme;
+        const started = await musicManager.play(currentTheme);
 
-  audio.loop = true;
-  audio.muted = this.muted;
-  audio.volume = this.muted ? 0 : this.volume;
-
-  if (this.muted) return;
-
-  try {
-    await audio.play();
-  } catch (e) {
-    console.error(`Music play failed for ${theme}:`, e);
-  }
+        if (!started) {
+            console.warn('Music did not start after restart');
+        }
+    } catch (error) {
+        console.error('Restart music error:', error);
+    }
 }
 
 
+// -------------------------
+// One music player
+// -------------------------
 
-fadeOut(audio) {
-let vol = audio.volume;
-const interval = setInterval(() => {
-vol = Math.max(0, vol - 0.1);
-audio.volume = vol;
-if (vol <= 0) {
-clearInterval(interval);
-audio.pause();
-audio.currentTime = 0;
+class MusicManager {
+    constructor() {
+        // One actual audio element for every music theme
+        this.audio = new Audio();
+        this.audio.preload = 'auto';
+        this.audio.loop = true;
+
+        this.current = null;
+        this.muted = false;
+        this.volume = musicVolume;
+
+        /*
+         * Compatibility layer.
+
+         * Old code can continue using:
+         *
+         * musicManager.audios[currentTheme].pause();
+         * musicManager.audios[currentTheme].load();
+         * musicManager.audios[currentTheme].currentTime = 0;
+         *
+         * Every theme points to the same actual audio element.
+         */
+        this.audios = {
+            dungeon: this.audio,
+            desert: this.audio,
+            hell: this.audio,
+            paradise: this.audio,
+            ruins: this.audio,
+            hideout: this.audio,
+            palace: this.audio
+        };
+
+        this.audio.onerror = () => {
+            console.error('Music failed to load:', {
+                source: this.audio.currentSrc,
+                error: this.audio.error
+            });
+        };
+    }
+
+    async play(theme) {
+        if (!theme || !this.audios[theme]) {
+            console.warn('Unknown music theme:', theme);
+            return false;
+        }
+
+        const musicFile = `${theme}.mp3`;
+
+        /*
+         * Load a new file only when the theme changes,
+         * or when old code manually reset current to null.
+         */
+        if (
+            this.current !== theme ||
+            this.audio.src === '' ||
+            !this.audio.src.endsWith(musicFile)
+        ) {
+            this.audio.pause();
+            this.audio.currentTime = 0;
+            this.audio.src = musicFile;
+            this.audio.load();
+            this.current = theme;
+        }
+
+        this.audio.loop = true;
+        this.audio.muted = this.muted;
+        this.audio.volume = this.muted ? 0 : this.volume;
+
+        if (this.muted) {
+            return true;
+        }
+
+        try {
+            await this.audio.play();
+
+            console.log(`Playing music theme: ${theme}`);
+
+            return true;
+        } catch (error) {
+            console.error(`Music play failed for ${theme}:`, {
+                name: error.name,
+                message: error.message,
+                source: this.audio.currentSrc
+            });
+
+            return false;
+        }
+    }
+
+    pause() {
+        this.audio.pause();
+    }
+
+    stop() {
+        this.audio.pause();
+        this.audio.currentTime = 0;
+        this.current = null;
+    }
+
+    setVolume(volume) {
+        this.volume = Math.max(0, Math.min(1, Number(volume)));
+
+        musicVolume = this.volume;
+        localStorage.setItem('musicVolume', this.volume);
+
+        this.audio.volume = this.muted ? 0 : this.volume;
+    }
+
+    mute(muted) {
+        this.muted = Boolean(muted);
+
+        this.audio.muted = this.muted;
+        this.audio.volume = this.muted ? 0 : this.volume;
+    }
+
+    fadeOut() {
+        let volume = this.audio.volume;
+
+        const interval = setInterval(() => {
+            volume = Math.max(0, volume - 0.1);
+            this.audio.volume = volume;
+
+            if (volume <= 0) {
+                clearInterval(interval);
+                this.audio.pause();
+                this.audio.currentTime = 0;
+            }
+        }, 100);
+    }
+
+    fadeIn() {
+        let volume = 0;
+
+        this.audio.volume = 0;
+
+        const interval = setInterval(() => {
+            volume = Math.min(this.volume, volume + 0.1);
+            this.audio.volume = volume;
+
+            if (volume >= this.volume) {
+                clearInterval(interval);
+            }
+        }, 100);
+    }
 }
-}, 100);
-}
-fadeIn(audio) {
-let vol = 0;
-const interval = setInterval(() => {
-vol = Math.min(this.volume, vol + 0.1);
-audio.volume = vol;
-if (vol >= this.volume) {
-clearInterval(interval);
-}
-}, 100);
-}
-mute(muted) {
-this.muted = muted;
-if (this.current) {
-this.audios[this.current].muted = muted;
-this.audios[this.current].volume = muted ? 0 : musicVolume;
-}
-}
-}
+
 const musicManager = new MusicManager();
-Object.values(sounds).forEach(s => {
-if (s instanceof Audio) {
-s.volume = 1.0;
-s.onerror = () => console.error(`Failed to load sound: ${s.src}`);
-}
+
+
+// -------------------------
+// Configure regular audio files
+// -------------------------
+
+Object.values(sounds).forEach(sound => {
+    if (sound instanceof Audio) {
+        sound.volume = soundVolume;
+
+        sound.onerror = () => {
+            console.error('Sound failed to load:', sound.src);
+        };
+    }
 });
+
+
+// -------------------------
+// Optional sound preloading
+// -------------------------
+
 function isIOSorSafari() {
-const ua = navigator.userAgent;
-return /iPad|iPhone|iPod/.test(ua) || /Safari/.test(ua);
+    const ua = navigator.userAgent || '';
+
+    return /iPad|iPhone|iPod/.test(ua) ||
+           (/Safari/.test(ua) &&
+            !/Chrome|CriOS|Android/.test(ua));
 }
+
 function preloadSounds() {
-const savedSoundVolume = soundVolume;
-if (isIOSorSafari()) {
-Object.entries(sounds).forEach(([key, sound]) => {
-if (key === 'dungeon' || key === 'desert' || key === 'hell' || key === 'paradise' || key === 'ruins' || key === 'hideout' || key === 'palace' || key === 'hit' || key === 'pickup' || key === 'heads' || key === 'tails' || key === 'lava' || key === 'quicksand' || key === 'pond' || key === 'rune' || key === 'rune_drop' || key === 'hole' || key === 'town_portal' || key === 'buzz' || key === 'unique_monster') return;
-if (Array.isArray(sound)) {
-sound.forEach((instance, idx) => {
-const tempAudio = new Audio(instance.src);
-tempAudio.volume = 0;
-});
-} else if (sound instanceof Audio && sound.src) {
-const tempAudio = new Audio(sound.src);
-tempAudio.volume = 0;
+    Object.values(sounds).forEach(sound => {
+        if (!(sound instanceof Audio)) {
+            return;
+        }
+
+        sound.load();
+    });
+
+    setSoundVolume(soundVolume);
 }
-});
-} else {
-Object.entries(sounds).forEach(([key, sound]) => {
-if (key === 'dungeon' || key === 'desert' || key === 'hell' || key === 'paradise' || key === 'ruins' || key === 'hideout' || key === 'palace' || key === 'hit' || key === 'pickup' || key === 'heads' || key === 'tails' || key === 'lava' || key === 'quicksand' || key === 'pond' || key === 'rune' || key === 'rune_drop' || key === 'hole' || key === 'town_portal' || key === 'buzz' || key === 'unique_monster') return;
-if (Array.isArray(sound)) {
-sound.forEach((instance, idx) => {
-if (instance instanceof Audio && instance.src) {
-instance.volume = 0;
-instance.play().then(() => {
-instance.pause();
-instance.currentTime = 0;
-instance.volume = 0;
-}).catch(e => console.error(`Preload sound error for ${instance.src}:`, e));
-}
-});
-} else if (sound instanceof Audio && sound.src) {
-sound.volume = 0;
-sound.play().then(() => {
-sound.pause();
-sound.currentTime = 0;
-sound.volume = 0;
-}).catch(e => console.error(`Preload sound error for ${sound.src}:`, e));
-}
-});
-}
-setTimeout(() => {
-setSoundVolume(savedSoundVolume);
-}, 100);
-}
+
+
+// -------------------------
+// Play Web Audio sound effect
+// -------------------------
+
 function playWebAudioSound(soundObj) {
-if (!soundObj.buffer) {
-console.warn(`Buffer not loaded for ${soundObj.url}`);
-return;
+    if (!soundObj || !soundObj.buffer) {
+        console.warn(`Buffer not loaded for ${soundObj?.url}`);
+        return;
+    }
+
+    if (soundObj.isPlaying) {
+        return;
+    }
+
+    const context = getAudioContext();
+
+    if (context.state === 'suspended') {
+        context.resume().catch(error => {
+            console.error('Failed to resume AudioContext:', error);
+        });
+    }
+
+    soundObj.isPlaying = true;
+
+    const source = context.createBufferSource();
+    source.buffer = soundObj.buffer;
+
+    const gainNode = context.createGain();
+    gainNode.gain.value = 1.0;
+
+    source.connect(gainNode);
+    gainNode.connect(masterGain);
+
+    source.start(0);
+
+    source.onended = () => {
+        soundObj.isPlaying = false;
+    };
+
+    setTimeout(() => {
+        soundObj.isPlaying = false;
+    }, soundObj.duration);
 }
-if (soundObj.isPlaying) {
-return;
-}
-if (audioContext.state === 'suspended') {
-audioContext.resume().then(() => {
-}).catch(e => console.error('Failed to resume AudioContext:', e));
-}
-soundObj.isPlaying = true;
-const source = audioContext.createBufferSource();
-source.buffer = soundObj.buffer;
-const gainNode = audioContext.createGain();
-gainNode.gain.value = 1.0;
-source.connect(gainNode);
-gainNode.connect(masterGain);
-source.start(0);
-source.onended = () => {
-soundObj.isPlaying = false;
-};
-setTimeout(() => {
-if (soundObj.isPlaying) {
-soundObj.isPlaying = false;
-}
-}, soundObj.duration);
-}
+
+
 const talkOpts = {speed: 72, pitch: 28, throat: 128, mouth: 128};
 const talkLines = [
 "DUMMY LINE, DO NOT USE",
@@ -3676,6 +3863,8 @@ currentAudio.currentTime = 0;
 }
 localStorage.setItem('musicMuted', 'false');
 fadeSplash();
+restartMusicAfterStart();
+
 setTimeout(() => {
 if (!gameOver && !splashActive) {
 requestWakeLock();
@@ -13651,6 +13840,8 @@ splashImg.src = currentSplashImage;
 splashCanvas.drawImage(splashImg, 0, 0, 320, 320);
 }
 fadeSplash();
+restartMusicAfterStart();
+
 setTimeout(() => {
 if (!gameOver && !splashActive) {
 fetchTxs();
@@ -13838,32 +14029,39 @@ break;
 }
 }
 }
-if (audioContext.state === 'suspended') {
-audioContext.resume().then(() => {
-}).catch(e => console.error('Failed to resume AudioContext:', e));
+// Use dungeon only when no theme has been selected yet
+if (!currentTheme) {
+    currentTheme = 'dungeon';
 }
+
 preloadSounds();
-currentTheme = 'dungeon';
+
 musicManager.mute(musicMuted);
-document.getElementById('mute').textContent = musicMuted ? 'X' : '♪';
-musicManager.current = null;
-musicManager.audios[currentTheme].pause();
-musicManager.audios[currentTheme].currentTime = 0;
-if (musicManager.audios[currentTheme].readyState >= 2) {
-console.log('Playing music from start:', currentTheme);
-musicManager.play(currentTheme);
-} else {
-console.log('Audio not ready, waiting for', currentTheme);
-musicManager.audios[currentTheme].load();
-musicManager.audios[currentTheme].oncanplaythrough = () => {
-console.log('Audio ready, playing from start:', currentTheme);
-musicManager.audios[currentTheme].currentTime = 0;
+
+document.getElementById('mute').textContent =
+    musicMuted ? 'X' : '♪';
+
 if (!musicMuted && !inPuzzleRoom) {
-musicManager.play(currentTheme);
+    musicManager.current = null;
+
+    unlockAudio()
+        .then(() => musicManager.play(currentTheme))
+        .then(success => {
+            if (success) {
+                console.log('Playing music from start:', currentTheme);
+            } else {
+                console.warn('Music could not start:', currentTheme);
+            }
+        })
+        .catch(error => {
+            console.error('Audio startup failed:', error);
+        });
 }
-};
-}
+
 fadeSplash();
+restartMusicAfterStart();
+
+
 if (gamepadIndex !== null) {
 gamepadPollingActive = true;
 updateGamepad();
@@ -14345,5 +14543,6 @@ console.log('Game resumed + canvas forced redraw');
 </script>
 </body>
 </html>
+
 
 
