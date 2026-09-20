@@ -1,4 +1,4 @@
-# btc-dungeon.github.io
+# emperoth.github.io/btc-dungeon
 Play my retro roguelike game and get some whale alerts on the way!
 <br/>
 <br/>
