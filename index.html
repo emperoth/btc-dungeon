@@ -82,6 +82,20 @@ z-index: 30;
 display: none; 
 text-align: center; 
 }
+
+#bitcoin-price {
+  position: absolute;
+  top: 72px;
+  left: 16px;
+
+  color: #ffffff;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 1px;
+  z-index: 2;
+}
+
 #battle-log {
 width: 620px;
 margin-left: 20px; 
@@ -865,6 +879,26 @@ Whale Transactions:
 <div id="loading-text" style="position: absolute; top: 70%; left: 50%; transform: translate(-50%, -50%); color: #ff8c00; font-family: 'VT323', monospace; font-size: 24px; text-align: center; pointer-events: none; z-index: 50;">
 Loading...
 </div>
+
+<div
+  id="bitcoin-price"
+  style="
+    position: absolute;
+    top: 72px;
+    left: 16px;
+    color: #ff8c00;
+    font-family: 'VT323', monospace;
+    font-size: 22px;
+    line-height: 1;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+    pointer-events: none;
+    z-index: 40;
+  "
+>
+  BITCOIN: loading...
+</div>
 <!-- START button now hidden by default -->
 <button id="start-button" style="display: none;">START</button>
 <div id="info-icon" onclick="showInfo()" style="position: absolute; top: 50px; right: 20px; width: 30px; height: 30px; background: #00e8d8; color: #fff; border: 3px solid #ff8c00; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-family: 'VT323', monospace; font-size: 24px; cursor: pointer; z-index: 50;">i</div>
@@ -1332,8 +1366,6 @@ async function submitScore() {
 }
 
 
-
-
 function generateSessionId() {
 return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
 const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -1342,7 +1374,6 @@ return v.toString(16);
 }
 const sessionId = localStorage.getItem('sessionId') || generateSessionId();
 localStorage.setItem('sessionId', sessionId);
-
 
 
 async function fetchLeaderboard(
@@ -1476,7 +1507,6 @@ async function fetchLeaderboard(
         leaderboardOutput.style.display = 'block';
     }
 }
-
 
 
 function getPlayerEstimatedRank(
@@ -3494,13 +3524,27 @@ rainNoiseSource.connect(filter1).connect(filter2).connect(gain).connect(audioCon
 rainNoiseSource.start(now);
 rainAmbienceTimer = true;
 }
+
 function startFireplaceAmbience() {
-if (fireplaceAmbienceTimer) return;
-if (audioContext.state === 'suspended') {
-audioContext.resume().catch(e =>
-console.error('Failed to resume AudioContext for fireplace:', e)
-);
-}
+  // Do not activate fireplace ambience while the splash screen is visible
+  if (splashActive) return;
+
+  if (fireplaceAmbienceTimer) return;
+
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().then(() => {
+      // The splash screen may have become active while audio was resuming
+      if (splashActive) {
+        stopFireplaceAmbience();
+        return;
+      }
+
+      // Continue with the rest of your existing function
+    }).catch(e =>
+      console.error('Failed to resume AudioContext for fireplace:', e)
+    );
+  }
+  
 const now = audioContext.currentTime;
 const bufferSize = 4 * audioContext.sampleRate;
 const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
@@ -3745,32 +3789,84 @@ source.connect(gainNode);
 gainNode.connect(audioContext.destination);
 source.start(0);
 }
+
 const splashCanvas = document.getElementById('splash-canvas').getContext('2d');
 let currentSplashImage = 'splash.png';
+
 const splashImg = new Image();
+
+function showStartScreen() {
+  const loadingText = document.getElementById('loading-text');
+  const startButton = document.getElementById('start-button');
+
+  if (loadingText) loadingText.style.display = 'none';
+  if (startButton) startButton.style.display = 'block';
+}
+
+async function loadBitcoinPrice() {
+  const bitcoinPrice = document.getElementById('bitcoin-price');
+
+  if (!bitcoinPrice) return;
+
+  bitcoinPrice.textContent = 'BITCOIN: loading...';
+
+  try {
+    const response = await fetch(
+      'https://mempool.space/api/v1/prices'
+    );
+
+    if (!response.ok) {
+      throw new Error(`BITCOIN price request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const price = data?.USD;
+
+    if (typeof price !== 'number') {
+      throw new Error('BITCOIN USD price was not found');
+    }
+
+    const formattedPrice = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0
+    }).format(price);
+
+    bitcoinPrice.textContent = `BITCOIN: ${formattedPrice}`;
+  } catch (error) {
+    console.warn('Bitcoin price failed to load:', error);
+    bitcoinPrice.textContent = 'BITCOIN: unavailable';
+  }
+}
+
+
 splashImg.src = currentSplashImage;
+
 splashImg.onload = () => {
-splashCanvas.clearRect(0, 0, 320, 320);
-splashCanvas.drawImage(splashImg, 0, 0, 320, 320);
-if (currentSplashImage === 'splash.png') {
-const loadingText = document.getElementById('loading-text');
-const startButton = document.getElementById('start-button');
-if (loadingText) loadingText.style.display = 'none';
-if (startButton) startButton.style.display = 'block';
-}
+  splashCanvas.clearRect(0, 0, 320, 320);
+  splashCanvas.drawImage(splashImg, 0, 0, 320, 320);
+
+  if (currentSplashImage === 'splash.png') {
+    showStartScreen();
+  }
 };
+
 if (splashImg.complete && splashImg.naturalWidth > 0) {
-splashImg.onload();
+  splashImg.onload();
 }
+
 splashImg.onerror = () => {
-console.warn('Splash image failed to load');
-if (currentSplashImage === 'splash.png') {
-const loadingText = document.getElementById('loading-text');
-const startButton = document.getElementById('start-button');
-if (loadingText) loadingText.style.display = 'none';
-if (startButton) startButton.style.display = 'block';
-}
+  console.warn('Splash image failed to load');
+
+  if (currentSplashImage === 'splash.png') {
+    showStartScreen();
+  }
 };
+
+// Runs once each time this script/start screen is initialized.
+loadBitcoinPrice();
+
+
 function fadeSplash() {
 setTimeout(() => {
 const imgData = splashCanvas.getImageData(0, 0, 320, 320);
@@ -3996,23 +4092,42 @@ battleEvents.scrollTop = battleEvents.scrollHeight;
 }, 300);
 }, 3000);
 }
+
 function updateSatsDisplay() {
-const raw = Object.values(satsEarned).reduce((sum, v) => sum + v, 0);
-const mult = getScoreWithMultiplier(raw , floor);
-const satsElem   = document.getElementById('sats');
-satsElem.textContent =
-raw < 1e8 ? `${raw} sats` : `${(raw / 1e8).toFixed(1)} BTC`;
-const calcElem = document.getElementById('sats-calc');
-calcElem.textContent = `${mult < 1e8 ? `${mult} sats` : `${(mult / 1e8).toFixed(1)} BTC`}`;
+  const raw = Object.values(satsEarned).reduce(
+    (sum, value) => sum + Number(value),
+    0
+  );
+
+  const mult = getScoreWithMultiplier(raw, floor);
+  const satsElem = document.getElementById('sats');
+  const calcElem = document.getElementById('sats-calc');
+
+  if (satsElem) {
+    satsElem.textContent =
+      raw < 1e8
+        ? `${raw} sats`
+        : `${(raw / 1e8).toFixed(1)} BTC`;
+  }
+
+  if (calcElem) {
+    calcElem.textContent =
+      mult < 1e8
+        ? `${mult} sats`
+        : `${(mult / 1e8).toFixed(1)} BTC`;
+  }
+}
+
 if (exit && enemies.length === 0) {
-logBattleEvent(`Kills:`);
-for (const type of types) {
-if (kills[type.name] > 0) {
-logBattleEvent(`${type.name}: ${kills[type.name]}`);
+  logBattleEvent('Kills:');
+
+  for (const type of types) {
+    if (kills[type.name] > 0) {
+      logBattleEvent(`${type.name}: ${kills[type.name]}`);
+    }
+  }
 }
-}
-}
-}
+
 function updateXPBar() {
 if (splashActive || gameOver) return;
 const currentReq = getXPForLevel(playerLevel);
@@ -8668,7 +8783,7 @@ break;
 case 'chain':
 verb = 'zaps';
 effect = '[CHAIN LIGHTNING]';
-attackSound = sounds.town_portal;                        
+attackSound = sounds.unique_monster;                        
 break;
 case 'earth':
 verb = 'smashes';
@@ -12066,6 +12181,7 @@ enemyBgFrameTimes.clear();
 map = [];
 rooms = [];
 exit = null;
+loadBitcoinPrice()
 gameOver = false;
 gameOverSoundPlayed = false;
 autoSubmitTriggered = false;
