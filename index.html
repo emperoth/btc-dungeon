@@ -1242,6 +1242,20 @@ const LOCAL_SCORE_STORAGE_KEY = 'localSubmittedScore';
 // Two million BTC expressed in sats.
 const TOP_LEADERBOARD_SCORE = 198734256819347;
 
+const STATIC_TOP_TEN_OVERRIDES = {
+    1: {
+        username: 'Blaise-Crypt',
+        score: 267942140000000,
+        floor: 450
+    },
+
+//    4: {
+//        username: 'EventWinner',
+//        score: 500000000000000,
+//        floor: 87
+//    }
+};
+
 // The static leaderboard has 100 tiers.
 // Each position below first place is half the previous position.
 function createStaticLeaderboard() {
@@ -1275,14 +1289,43 @@ function createStaticLeaderboard() {
     });
 }
 
-const staticLeaderboard = createStaticLeaderboard();
+function applyStaticTopTenOverrides(leaderboard) {
+    for (const [positionString, override] of Object.entries(
+        STATIC_TOP_TEN_OVERRIDES
+    )) {
+        const position = Number(positionString);
+
+        if (
+            !Number.isInteger(position) ||
+            position < 1 ||
+            position > 10
+        ) {
+            console.warn(
+                `Invalid static leaderboard position: ${positionString}`
+            );
+
+            continue;
+        }
+
+        const index = position - 1;
+
+        leaderboard[index] = {
+            ...leaderboard[index],
+            ...override
+        };
+    }
+
+    return leaderboard;
+}
+
+
+const staticLeaderboard = applyStaticTopTenOverrides(
+    createStaticLeaderboard()
+);
 
 let cachedLeaderboard = staticLeaderboard.map(entry => ({
     ...entry
 }));
-
-
-
 
 
 async function submitScore() {
@@ -1420,7 +1463,6 @@ async function fetchLeaderboard(
 
         cachedLeaderboard = leaderboardData;
 
-        let playerInTop10 = false;
         let playerEntry = null;
         let playerRank = null;
 
@@ -1429,10 +1471,8 @@ async function fetchLeaderboard(
             submittedScore !== null &&
             submittedFloor !== null
         ) {
-            const playerScore = getScoreWithMultiplier(
-                submittedScore,
-                submittedFloor
-            );
+            const playerScore = submittedScore;
+
 
             const rankedEntries = leaderboardData.map((entry, index) => ({
                 ...entry,
@@ -1453,8 +1493,6 @@ async function fetchLeaderboard(
             } else {
                 playerRank += 1;
             }
-
-            playerInTop10 = playerRank <= 10;
 
             playerEntry = {
                 username: submittedUsername,
@@ -1500,21 +1538,27 @@ async function fetchLeaderboard(
                 `${formattedUsername}${score}${floor}`;
         }
 
-        const rows = leaderboardData
-            .slice(0, 10)
-            .map((entry, index) => formatEntry(entry, index + 1));
+const rows = leaderboardData
+    .slice(0, 10)
+    .map((entry, index) => formatEntry(entry, index + 1));
 
-        // Preserve the previous behavior: after submitting, show the player
-        // on the tenth displayed row if they are outside the top ten.
-        if (playerEntry && !playerInTop10 && playerRank) {
-            const playerRow = formatEntry(playerEntry, playerRank);
+if (playerEntry && playerRank) {
+    const playerRow = formatEntry(playerEntry, playerRank);
 
-            if (rows.length >= 10) {
-                rows[9] = playerRow;
-            } else {
-                rows.push(playerRow);
-            }
+    // If the live player ranks in the top ten, replace the
+    // static entry at their actual rank.
+    if (playerRank <= 10) {
+        rows[playerRank - 1] = playerRow;
+    } else {
+        // If they rank below tenth, preserve the old behavior:
+        // show them temporarily on the tenth displayed row.
+        if (rows.length >= 10) {
+            rows[9] = playerRow;
+        } else {
+            rows.push(playerRow);
         }
+    }
+}
 
         const leaderboardText =
             `${header}\n${rows.join('\n') || 'No entries yet!'}`;
